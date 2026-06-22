@@ -1,1 +1,0 @@
-# vigil-incident-agent
