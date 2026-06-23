@@ -1,7 +1,7 @@
 """
-Sentinel AI Service — Gemini Integration Layer
+Sentinel AI Service — Groq Integration Layer
 
-All Gemini API calls are routed through this service.
+All Groq API calls are routed through this service.
 Provides structured JSON output, retry handling, and
 fallback mock responses for reliability.
 """
@@ -32,7 +32,7 @@ def _load_prompt(template_name: str) -> str:
 
 def _extract_json(text: str) -> dict:
     """
-    Extract a JSON object from Gemini's response text.
+    Extract a JSON object from the model's response text.
     Handles cases where the model wraps JSON in markdown fences.
     """
     # Strip markdown code fences if present
@@ -49,7 +49,7 @@ def _clamp(value: int, lo: int = 0, hi: int = 100) -> int:
     return max(lo, min(hi, value))
 
 
-def _validate_response(data: dict, source: str = "gemini") -> ThreatAnalysisResponse:
+def _validate_response(data: dict, source: str = "groq") -> ThreatAnalysisResponse:
     """
     Validate and normalize the parsed JSON into a ThreatAnalysisResponse.
     Applies score clamping and ensures all required fields exist.
@@ -146,12 +146,12 @@ def _fallback_image_response(filename: Optional[str], image_url: Optional[str]) 
 
 
 # ---------------------------------------------------------------------------
-# AIService — Primary Gemini Integration Class
+# AIService — Primary Groq Integration Class
 # ---------------------------------------------------------------------------
 
 class AIService:
     """
-    Centralized AI service that wraps all Gemini API interactions.
+    Centralized AI service that wraps all Groq API interactions.
     Provides analyze_text(), analyze_url(), analyze_image(), and
     generate_protection_plan() with automatic retry and fallback.
     """
@@ -160,30 +160,30 @@ class AIService:
 
     def __init__(self) -> None:
         self._client = None
-        self._model_name = "gemini-2.0-flash"
+        self._model_name = "llama-3.3-70b-versatile"
         self._initialized = False
         self._initialize()
 
     def _initialize(self) -> None:
         """
-        Lazily initialize the Gemini client.
+        Lazily initialize the Groq client.
         If the API key is missing or the SDK isn't installed, the service
         falls back to mock responses gracefully.
         """
-        api_key = settings.GEMINI_API_KEY.strip()
+        api_key = settings.GROQ_API_KEY.strip()
         if not api_key:
-            logger.warning("GEMINI_API_KEY not set — AI service will use fallback mock responses")
+            logger.warning("GROQ_API_KEY not set — AI service will use fallback mock responses")
             return
 
         try:
-            from google import genai
-            self._client = genai.Client(api_key=api_key)
+            from groq import Groq
+            self._client = Groq(api_key=api_key)
             self._initialized = True
-            logger.info("Gemini AI service initialized successfully")
+            logger.info("Groq AI service initialized successfully")
         except ImportError:
-            logger.warning("google-genai SDK not installed — AI service will use fallback mock responses")
+            logger.warning("groq SDK not installed — AI service will use fallback mock responses")
         except Exception as exc:
-            logger.error(f"Failed to initialize Gemini client: {exc}")
+            logger.error(f"Failed to initialize Groq client: {exc}")
 
     @property
     def is_available(self) -> bool:
@@ -193,9 +193,9 @@ class AIService:
     # Core query method with retry + fallback
     # ------------------------------------------------------------------
 
-    def _query_gemini(self, prompt: str) -> Optional[dict]:
+    def _query_groq(self, prompt: str) -> Optional[dict]:
         """
-        Send a prompt to Gemini and parse the JSON response.
+        Send a prompt to Groq and parse the JSON response.
         Retries up to MAX_RETRIES on failure.
         Returns parsed dict on success, None on failure.
         """
@@ -205,36 +205,36 @@ class AIService:
         last_error = None
         for attempt in range(1, self.MAX_RETRIES + 1):
             try:
-                response = self._client.models.generate_content(
+                response = self._client.chat.completions.create(
                     model=self._model_name,
-                    contents=prompt,
+                    messages=[{"role": "user", "content": prompt}],
                 )
-                raw_text = response.text
+                raw_text = response.choices[0].message.content
                 if not raw_text:
-                    logger.warning(f"Gemini returned empty response (attempt {attempt})")
+                    logger.warning(f"Groq returned empty response (attempt {attempt})")
                     continue
 
                 parsed = _extract_json(raw_text)
-                logger.info(f"Gemini response parsed successfully (attempt {attempt})")
+                logger.info(f"Groq response parsed successfully (attempt {attempt})")
                 return parsed
 
             except json.JSONDecodeError as exc:
                 last_error = exc
                 logger.warning(
-                    "JSON parse error from Gemini (attempt %s): %s",
+                    "JSON parse error from Groq (attempt %s): %s",
                     attempt,
                     exc,
                 )
             except Exception as exc:
                 last_error = exc
                 logger.error(
-                    "Gemini API error (attempt %s): %s",
+                    "Groq API error (attempt %s): %s",
                     attempt,
                     exc,
                     exc_info=True,
                 )
 
-        logger.error(f"All {self.MAX_RETRIES} Gemini attempts failed. Last error: {last_error}")
+        logger.error(f"All {self.MAX_RETRIES} Groq attempts failed. Last error: {last_error}")
         return None
 
     # ------------------------------------------------------------------
@@ -244,37 +244,37 @@ class AIService:
     def analyze_text(self, text: str) -> ThreatAnalysisResponse:
         """Analyze suspicious text/message content for threats."""
         if not self.is_available:
-            logger.info("Gemini unavailable — using fallback for text analysis")
+            logger.info("Groq unavailable — using fallback for text analysis")
             return _with_source(_fallback_text_response(text), "fallback")
 
         try:
             template = _load_prompt("text_analysis.txt")
             prompt = template.replace("{content}", text)
-            result = self._query_gemini(prompt)
+            result = self._query_groq(prompt)
             if result:
-                return _validate_response(result, "gemini")
+                return _validate_response(result, "groq")
         except Exception as exc:
             logger.error("Text analysis failed, using fallback: %s", exc, exc_info=True)
 
-        logger.warning("Gemini text analysis failed — using fallback response")
+        logger.warning("Groq text analysis failed — using fallback response")
         return _with_source(_fallback_text_response(text), "fallback")
 
     def analyze_url(self, url: str) -> ThreatAnalysisResponse:
         """Analyze suspicious URL for phishing/malware indicators."""
         if not self.is_available:
-            logger.info("Gemini unavailable — using fallback for URL analysis")
+            logger.info("Groq unavailable — using fallback for URL analysis")
             return _with_source(_fallback_url_response(url), "fallback")
 
         try:
             template = _load_prompt("url_analysis.txt")
             prompt = template.replace("{url}", url)
-            result = self._query_gemini(prompt)
+            result = self._query_groq(prompt)
             if result:
-                return _validate_response(result, "gemini")
+                return _validate_response(result, "groq")
         except Exception as exc:
             logger.error("URL analysis failed, using fallback: %s", exc, exc_info=True)
 
-        logger.warning("Gemini URL analysis failed — using fallback response")
+        logger.warning("Groq URL analysis failed — using fallback response")
         return _with_source(_fallback_url_response(url), "fallback")
 
     def analyze_image(
@@ -287,7 +287,7 @@ class AIService:
     ) -> ThreatAnalysisResponse:
         """Analyze screenshot/image content and extracted OCR text for threat indicators."""
         if not self.is_available:
-            logger.info("Gemini unavailable — using fallback for image analysis")
+            logger.info("Groq unavailable — using fallback for image analysis")
             fallback_obj = _fallback_image_response(filename, image_url)
             fallback_obj.ocr_confidence = ocr_confidence
             fallback_obj.extracted_text = extracted_text
@@ -301,9 +301,9 @@ class AIService:
                 .replace("{image_url}", image_url or "none")
                 .replace("{extracted_text}", extracted_text or "No text detected via OCR")
             )
-            result = self._query_gemini(prompt)
+            result = self._query_groq(prompt)
             if result:
-                response_obj = _validate_response(result, "gemini")
+                response_obj = _validate_response(result, "groq")
                 response_obj.ocr_confidence = ocr_confidence
                 response_obj.extracted_text = extracted_text
                 response_obj.ocr_source = ocr_source
@@ -311,7 +311,7 @@ class AIService:
         except Exception as exc:
             logger.error("Image analysis failed, using fallback: %s", exc, exc_info=True)
 
-        logger.warning("Gemini image analysis failed — using fallback response")
+        logger.warning("Groq image analysis failed — using fallback response")
         fallback_obj = _fallback_image_response(filename, image_url)
         fallback_obj.ocr_confidence = ocr_confidence
         fallback_obj.extracted_text = extracted_text
@@ -330,7 +330,7 @@ class AIService:
                 "Return ONLY a JSON array of strings, no explanation.\n\n"
                 f"Threat Data:\n{json.dumps(threat_data, indent=2)}"
             )
-            result = self._query_gemini(prompt)
+            result = self._query_groq(prompt)
             if result and isinstance(result, list):
                 return [str(item) for item in result]
         except Exception as exc:

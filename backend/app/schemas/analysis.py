@@ -23,6 +23,6 @@ class ThreatAnalysisResponse(BaseModel):
     protection_plan: List[str] = Field(..., description="Mitigation steps/checklist to protect the user")
     ocr_confidence: Union[float, None] = Field(None, description="OCR text extraction confidence score (0-100)")
     extracted_text: Union[str, None] = Field(None, description="Raw text extracted from the screenshot via OCR")
-    analysis_source: Union[str, None] = Field(None, description="Analysis engine source: gemini or fallback")
+    analysis_source: Union[str, None] = Field(None, description="Analysis engine source: groq or fallback")
     ocr_source: Union[str, None] = Field(None, description="OCR engine source: tesseract or fallback")
 

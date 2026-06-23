@@ -16,15 +16,15 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Sentinel AI"
     API_V1_STR: str = "/api/v1"
     CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
-    GEMINI_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
 
-    @field_validator("GEMINI_API_KEY", mode="before")
+    @field_validator("GROQ_API_KEY", mode="before")
     @classmethod
-    def normalize_gemini_key(cls, v: object) -> str:
+    def normalize_groq_key(cls, v: object) -> str:
         if v is None:
             return ""
         key = str(v).strip()
-        if not key or key == "your_gemini_api_key_here":
+        if not key or key == "your_groq_api_key_here":
             return ""
         return key
 

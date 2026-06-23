@@ -30,7 +30,7 @@ async def health_check():
     tags=["Analysis"],
     summary="Analyze suspicious screenshot image",
     description="Submit image metadata/payload for OCR and AI-powered threat analysis. "
-                "Falls back to heuristic mock responses if Gemini is unavailable.",
+                "Falls back to heuristic mock responses if Groq is unavailable.",
 )
 async def analyze_image(request: ImageAnalysisRequest):
     image_bytes = None
@@ -101,7 +101,7 @@ async def analyze_image(request: ImageAnalysisRequest):
     tags=["Analysis"],
     summary="Analyze suspicious link URL",
     description="Submit a URL for AI-powered threat analysis. "
-                "Falls back to heuristic mock responses if Gemini is unavailable.",
+                "Falls back to heuristic mock responses if Groq is unavailable.",
 )
 async def analyze_url(request: UrlAnalysisRequest):
     return ai_service.analyze_url(url=request.url)
@@ -113,7 +113,7 @@ async def analyze_url(request: UrlAnalysisRequest):
     tags=["Analysis"],
     summary="Analyze suspicious message or email text",
     description="Submit text content for AI-powered threat analysis. "
-                "Falls back to heuristic mock responses if Gemini is unavailable.",
+                "Falls back to heuristic mock responses if Groq is unavailable.",
 )
 async def analyze_text(request: TextAnalysisRequest):
     return ai_service.analyze_text(text=request.text)
